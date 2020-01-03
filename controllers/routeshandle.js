@@ -9,13 +9,11 @@ function convertObjectId(str, res){
     res.send("invalid objectid string!");
   }
 }
-// MongoClient.connect(process.env.DB, (err, client) =>{
-//   let threadsCollection = client.db('testdb').collection('threads');
   module.exports = (threadsCollection) =>({
                   createThread: function(req, res){
-                    req.params.board = req.body.board
+                    let board = req.params.board || req.body.board;
                     threadsCollection.insertOne({
-                      board: req.body.board,
+                      board: board,
                       text: req.body.text,
                       delete_password: req.body.delete_password,
                       created_on: new Date().toUTCString(),
@@ -23,7 +21,7 @@ function convertObjectId(str, res){
                       replies: [],
                       reported: false
                     }, (err, cursor) =>{
-                      res.redirect("/b/"+req.body.board);
+                      res.redirect("/b/"+board);
                     })
                   },
                   reply: function(req, res){
@@ -42,23 +40,9 @@ function convertObjectId(str, res){
                         thread.bumped_on = newReply.created_on;
                         thread.replies.push(newReply);
                         threadsCollection.save(thread,{},(err, cursor) =>{
-                          res.redirect("/b/"+thread.board)
+                          res.redirect("/b/"+thread.board+'/'+req.body.thread_id)
                         })
                         
-//                         repliesCollection.insertOne({
-//                           _id: ObjectId(),
-//                           thread_id: id,
-//                           text: req.body.text,
-//                           created_on: new Date().toUTCString(),
-//                           delete_password: req.body.delete_password,
-//                           reported: false
-
-//                         }).toArray((err, replyArr)=>{
-//                           thread.bumped_on = replyArr[0].created_on;
-//                           threadsCollection.save(thread,(err, cursor) =>{
-//                             res.redirect("/b/"+thread.board)
-//                           })
-//                         })                        
                       }
                       else {
                         res.send("the thead is not found!")
@@ -72,7 +56,6 @@ function convertObjectId(str, res){
                       upsert: false,
                       returnNewDocument: true
                     },(err, docArr) =>{
-                      console.log(docArr);
                       res.send('reported');
                     })
                   },
@@ -83,27 +66,20 @@ function convertObjectId(str, res){
                       //single query condition, $elemMatch is not better than {replies._id...}
                       let arr = thread.replies;
                       let index;
-                      console.log(arr.length)
+                      // console.log(arr.length)
                       for(let i = 0; i < arr.length; i++){
-                        // console.log(arr[i]._id.equals(id))
                         if(arr[i]._id.equals(id)){
                           index = i;
                           break;
                         }
                       }
                       thread.replies[index].reported = true;
-                      // console.log(index);
                       threadsCollection.save(thread, {}, (err, doc) =>{
                         res.send('reported');
                       })
                       
                     })
-                    // repliesCollection.findOneAndUpdate({_id: id}, {reported: true}, {
-                    //   upsert: false,
-                    //   returnNewDocument: true
-                    // },(err, cursor) =>{
-                    //   res.send('reported');
-                    // })
+
                   },
                   deleteThread: function(req, res){
                     let id = convertObjectId(req.body.thread_id, res);
@@ -127,10 +103,8 @@ function convertObjectId(str, res){
                   },
                   deleteReply: function(req, res){
                     let id = convertObjectId(req.body.reply_id, res);
-                    console.log(req.body);
                     threadsCollection.findOne({"replies._id": id},(err, thread) =>{
                       //single query condition, $elemMatch is not better than {"replies._id"...}
-                      // console.log(thread)
                       if(thread){
                         let arr = thread.replies;
                         let index;
@@ -155,22 +129,16 @@ function convertObjectId(str, res){
                         res.send('reply is not found');
                       }
                     })
-                    // repliesCollection.findOneAndUpdate({_id: id}, {reported: true}, {
-                    //   upsert: false,
-                    //   returnNewDocument: true
-                    // },(err, cursor) =>{
-                    //   res.send('reported');
-                    // })
+                    
                   },
                   getRecentThreads: function(req, res){
-                    console.log('user want to get some data');
+                    // console.log('user want to get some data');
                     threadsCollection.aggregate([
                       {$match: {}},
                       {$sort: {bumped_on: -1}},
                       {$limit: 10},
                       {$sort: {"replies.created_on": -1}},
                       {$project: {
-                        reported: 1,
                         board: 1,
                         text: 1,
                         created_on: 1,
@@ -190,13 +158,14 @@ function convertObjectId(str, res){
                     })
                   },
                   getAllThreads: function(req, res){
-                    threadsCollection.find({},{
-                      reported: 0,
-                      delete_password: 0,
+                    let id = convertObjectId(req.query.thread_id, res);
+                    threadsCollection.findOne({_id: id},{
+                      // reported: 0,
+                      // delete_password: 0,
                       "replies.reported": 0,
                       "replies.delete_password": 0
-                    }).toArray((err, docs) =>{
-                      res.json(docs);
+                    },(err, doc) =>{
+                      res.json(doc.replies);
                     })
                   }
                  })
