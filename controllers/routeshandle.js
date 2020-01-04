@@ -165,7 +165,13 @@ function convertObjectId(str, res){
                       "replies.reported": 0,
                       "replies.delete_password": 0
                     },(err, doc) =>{
-                      res.json(doc.replies);
+                      if(doc){
+                        res.json(doc.replies);
+                      }
+                      else{
+                        res.send('thread is not found')
+                      }
+                      
                     })
                   }
                  })
